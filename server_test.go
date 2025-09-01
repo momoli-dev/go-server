@@ -3,6 +3,7 @@ package server_test
 import (
 	"io"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -84,4 +85,33 @@ func TestServer_MustStart_Panic(t *testing.T) {
 	assert.Panics(t, func() {
 		srv.MustStart()
 	})
+}
+
+func TestServer_Graceful(t *testing.T) {
+	handler := http.NewServeMux()
+	handler.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello, Graceful!"))
+	})
+
+	params := &server.ServerParams{
+		Addr:    ":8083",
+		Handler: handler,
+	}
+
+	srv := server.NewServer(params)
+	shutdownChan := srv.Graceful()
+
+	time.Sleep(100 * time.Millisecond)
+
+	resp, err := http.Get("http://localhost:8083/test")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	shutdownChan <- os.Interrupt
+	time.Sleep(100 * time.Millisecond)
+
+	_, err = http.Get("http://localhost:8083/test")
+	assert.Error(t, err)
 }

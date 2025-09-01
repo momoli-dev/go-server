@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -65,4 +66,17 @@ func (s *Server) MustShutdown() {
 	if err := s.Shutdown(); err != nil {
 		panic(err)
 	}
+}
+
+// Graceful starts the server and listens for termination signals to gracefully shut it down.
+func (s *Server) Graceful() chan os.Signal {
+	c := OnTerminate(func(sig os.Signal) {
+		s.MustShutdown()
+	})
+
+	go func() {
+		s.MustStart()
+	}()
+
+	return c
 }
